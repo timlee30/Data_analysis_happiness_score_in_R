@@ -1,0 +1,268 @@
+### Data Preparation
+
+#### Step1: Data Acquisition
+
+```{r}
+library(readr)
+X2015 <- read_csv("/Users/apple/OneDrive - Northeastern University/MATH7343/project/2015.csv")
+View(X2015)
+```
+
+#### Step2: Explore data
+
+***1. summary***
+
+```{r}
+summary(X2015)
+```
+
+#### Step3: Deal with missing values:
+
+```{r}
+sapply(X2015, function(x) sum(is.na (X2015)))
+```
+
+There are no na value. good.
+
+#### Step4: ouliers
+
+We use boxplot to drop the points below Q1 - 1.5 \* IQR or above Q3 + 1.5 \* IQR.
+
+```{r}
+bx1<-boxplot(X2015$`Happiness Score`, ylab = "Happiness-Score")
+```
+
+no outliers for column 1.
+
+```{r}
+bx2<-boxplot(X2015$`Economy (GDP per Capita)`, ylab = "Economy (GDP per Capita)")
+```
+
+no outliers for column 2.
+
+```{r}
+bx3<-boxplot(X2015$Family, ylab = "Family")
+```
+
+3 outliers!
+
+```{r}
+out_ind3 <- which( X2015$Family%in% bx3$out)
+X2015_no<-X2015[-out_ind3,]
+dim(X2015_no)
+```
+
+```{r}
+dim(X2015)
+```
+
+ok, delete the outliers for coolumn3!
+
+```{r}
+bx4<-boxplot(X2015_no$`Health (Life Expectancy)`, ylab = "Health (Life Expectancy)")
+```
+
+no outliers!
+
+```{r}
+bx5<-boxplot(X2015_no$Freedom, ylab = "Freedom")
+```
+
+no outliers!
+
+```{r}
+bx6<-boxplot(X2015_no$`Trust (Government Corruption)`, ylab = "Trust (Government Corruption)")
+```
+
+many outliers!
+
+```{r}
+out_ind6 <- which( X2015_no$`Trust (Government Corruption)`%in% bx6$out)
+X2015_no<-X2015_no[-out_ind6,]
+dim(X2015_no)
+```
+
+```{r}
+bx7<-boxplot(X2015_no$Generosity, ylab = "Generosity")
+```
+
+some outlier!
+
+```{r}
+out_ind7 <- which( X2015_no$Generosity%in% bx7$out)
+X2015_no<-X2015_no[-out_ind7,]
+dim(X2015_no)
+```
+
+delete all the outliers now!!!
+
+#### Step5: correlation/collinearity/distribution analysis
+
+Use pairs.panels to see the distributions and correlation of each feature in the data set.
+
+```{r}
+library(psych)
+pairs.panels(X2015_no,method = "pearson")
+```
+```{r}
+cc = cor(X2015_no, method = "spearman")
+cc
+```
+
+#### Step6: normalization
+
+```{r}
+X2015_no
+X2015_scaled<-X2015_no
+X2015_scaled
+#use scale function to normalize all the columns except the target
+X2015_scaled <- as.data.frame(scale(X2015_scaled[,-1]))
+X2015_scaled$Happyiness<-X2015_no$`Happiness Score`
+X2015_scaled
+```
+
+check out if the columns have been normalized.
+
+```{r}
+summary(X2015_scaled)
+```
+```{r}
+data<-X2015_scaled
+names(data)<-c("GDP","Family","Health","Freedom","Trust","Generosity","Dystopia","score")
+data
+```
+
+#### Split the data into training data and testing data
+
+Choose 70% of the data randomly to be the training data, the left data to be the testing data.
+```{r}
+set.seed(123123)
+splitsample <- sample.int(n = nrow(data), size = floor(.70*nrow(data)), replace = F)
+train <- data[splitsample, ]
+test <- data[-splitsample, ]
+head(train)
+train<-as.data.frame(train)
+test<-as.data.frame(test)
+```
+#### Model1: Linear Regression
+
+***1.build the model***
+
+There are four assumptions of linear regression.
+
+1.1 Linear relationship: It means there exists a linear relationship between the independent variable, x, and the dependent variable, y.
+
+We can check linearity using the scatterplots.
+```{r}
+plot(score ~ GDP, data=data)
+abline(lm(score ~ GDP, data=data))
+```
+
+
+```{r}
+plot(score ~ Family, data=data)
+abline(lm(score ~ Family, data=data))
+```
+
+
+```{r}
+plot(score ~ Health, data=data)
+abline(lm(score ~ Health, data=data))
+```
+
+
+```{r}
+plot(score ~ Freedom, data=data)
+abline(lm(score ~ Freedom, data=data))
+```
+
+
+```{r}
+plot(score ~ Trust, data=data)
+abline(lm(score ~ Trust, data=data))
+```
+
+
+```{r}
+plot(score ~ Generosity, data=data)
+abline(lm(score ~ Generosity, data=data))
+```
+
+
+```{r}
+plot(score ~ Dystopia, data=data)
+abline(lm(score ~ Dystopia, data=data))
+```
+
+From the plots above, the linear relationship is not good in variable Generosity, for other variables it is good.
+
+1.2 Independence: It means the residuals are independent.
+
+It is not a longitudinal data set so we do not need to worry about independence assumption. It is “assumed” to be met. 
+
+1.3 Homoscedasticity: It means the residuals have constant variance at every level of x.
+
+1.4 Normality: It means the residuals of the model are normally distributed.
+
+We will check 1.3 and 1.4 later.
+
+
+```{r}
+lm1 = lm(score~., data =train) #Create the linear regression
+summary(lm1)
+```
+***2.evaluate the model***
+
+With R-square of 1, the model is good but we are concerned about overfitting. 
+
+```{r}
+pred_lr <- predict(lm1, newdata = test)
+sst_lr <- sum((test[,8] - mean(test[,8]))^2)
+sse_lr <- sum((pred_lr - test[,8])^2)
+mse_lr<-mean((pred_lr - test[,8])^2)
+mse_lr
+rmse_lr<-sqrt(mse_lr)
+rmse_lr
+# R squared
+rsq_lr <- 1 - sse_lr / sst_lr
+rsq_lr
+```
+
+The r-squared for testing data is 0.9999, not bad.
+The mse is 8.452302e-08. The rmse is 0.0002907284.
+```{r}
+plot(lm1)
+```
+From the plot:
+
+1. Residuals vs Fitted
+
+This plot shows if residuals have non-linear patterns. There could be a non-linear relationship between predictor variables and an outcome variable and the pattern could show up in this plot if the model doesn’t capture the non-linear relationship. If you find equally spread residuals around a horizontal line without distinct patterns, that is a good indication you don’t have non-linear relationships.
+
+From the residual plot of our model above, we can see that the red line is basically horizontal and centered around zero. This means most of the data meets the regression assumption well.
+
+2. Normal Q-Q
+
+This plot shows if residuals are normally distributed. Do residuals follow a straight line well or do they deviate severely? It’s good if residuals are lined well on the straight dashed line.
+
+Our Q-Q plot is basically good but with 3 observations look a little off. 
+
+3. Scale-Location
+
+It’s also called Spread-Location plot. This plot shows if residuals are spread equally along the ranges of predictors. This is how you can check the assumption of equal variance (homoscedasticity). It’s good if you see a horizontal line with equally (randomly) spread points.
+
+In the Scale-Location plot of our model, the residuals appear randomly spread. The red smooth line is basically horizontal, although not perfect.
+
+4. Residuals vs Leverage
+
+We watch out for outlying values at the upper right corner or at the lower right corner. Those spots are the places where cases can be influential against a regression line. Look for cases outside of a dashed line, Cook’s distance. When cases are outside of the Cook’s distance (meaning they have high Cook’s distance scores), the cases are influential to the regression results. The regression results will be altered if we exclude those cases.
+
+In our Residuals vs Leverage, 3 points are beyond the Cook’s distance lines.But basically it's good.
+
+Reference: https://data.library.virginia.edu/diagnostic-plots/
+
+From the above, it can be concluded that the assumptions are met basically. 
+
+```{r}
+```
+```
